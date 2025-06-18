@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Media Viewer</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: black;
+      }
+      video,
+      img {
+        width: 100vw;
+        height: 100vh;
+        object-fit: contain;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <script>
+      const ws = new WebSocket("ws://" + location.hostname + ":3000");
+      let mediaList = [],
+        index = 0,
+        duration = 3000;
+
+      let timeoutId = null;
+
+      function showMedia() {
+        const container = document.getElementById("container");
+        container.innerHTML = "";
+
+        const file = mediaList[index];
+        if (!file) return;
+
+        console.log("Showing:", file);
+
+        const ext = file.split(".").pop().toLowerCase();
+        const element =
+          ext === "mp4"
+            ? document.createElement("video")
+            : document.createElement("img");
+
+        element.src = file;
+
+        // Clear previous timeout if any
+        if (timeoutId) clearTimeout(timeoutId);
+
+        if (ext === "mp4") {
+          element.autoplay = true;
+          element.onended = () => next();
+        } else {
+          timeoutId = setTimeout(() => next(), duration);
+        }
+
+        container.appendChild(element);
+      }
+
+      function next() {
+        index = (index + 1) % mediaList.length;
+        showMedia();
+      }
+
+      ws.onmessage = async (event) => {
+        const text = await event.data.text();
+        const data = JSON.parse(text);
+        console.log("Received:", data);
+        if (data.type === "update") {
+          mediaList = data.media;
+          duration = data.duration;
+          index = 0;
+          showMedia();
+        }
+      };
+    </script>
+  </body>
+</html>

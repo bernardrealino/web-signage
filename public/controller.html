@@ -1,0 +1,19 @@
+
+<!DOCTYPE html>
+<html>
+<head><title>Controller</title></head>
+<body>
+  <h2>Controller</h2>
+  <label>Duration (ms): <input id="duration" type="number" value="3000"></label><br>
+  <label>Media (comma-separated): <textarea id="media" rows="4" cols="40">media/image1.jpg,media/image2.jpg</textarea></label><br>
+  <button onclick="sendUpdate()">Send Update</button>
+  <script>
+    const ws = new WebSocket("ws://" + location.hostname + ":3000");
+    function sendUpdate() {
+      const media = document.getElementById('media').value.split(',').map(f => f.trim());
+      const duration = parseInt(document.getElementById('duration').value);
+      ws.send(JSON.stringify({ type: 'update', media, duration }));
+    }
+  </script>
+</body>
+</html>
