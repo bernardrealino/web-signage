@@ -49,10 +49,15 @@
       if (timeoutId) clearTimeout(timeoutId);
       if (ext === "mp4") {
         el.autoplay = true;
+        el.onloadeddata = () => {
+          el.currentTime = 0;
+          el.play();
+        };
         el.onended = () => next();
       } else {
         timeoutId = setTimeout(() => next(), duration);
       }
+      
       progress.style.transition = "none";
       progress.style.width = "0%";
       void progress.offsetWidth;
