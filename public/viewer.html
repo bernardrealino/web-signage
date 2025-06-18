@@ -1,95 +1,88 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>Media Viewer</title>
-    <style>
-      body {
-        margin: 0;
-        overflow: hidden;
-        background: black;
+<head>
+  <meta charset="UTF-8">
+  <title>Viewer</title>
+  <style>
+    body { margin: 0; background: black; overflow: hidden; }
+    #container img, #container video {
+      width: 100vw;
+      height: 100vh;
+      object-fit: contain;
+      opacity: 0;
+      transition: opacity 1s ease-in-out;
+    }
+    #progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 5px;
+      background: lime;
+      width: 0%;
+      transition: width linear;
+    }
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+  <div id="progress"></div>
+  <script>
+    const ws = new WebSocket("ws://" + location.hostname + ":3000");
+    const container = document.getElementById("container");
+    const progress = document.getElementById("progress");
+    let mediaList = [], index = 0, loopCount = 0, maxLoops = Infinity, timeoutId = null, orientation = 'landscape';
+
+    function applyOrientation() {
+      document.body.style.transform = orientation === 'portrait' ? 'rotate(90deg)' : 'none';
+    }
+
+    function showMedia() {
+      if (!mediaList.length || loopCount >= maxLoops) return;
+      container.innerHTML = "";
+      const current = mediaList[index];
+      const src = typeof current === "string" ? current : current.src;
+      const duration = typeof current === "string" ? 3000 : current.duration || 3000;
+      const ext = src.split('.').pop().toLowerCase();
+      const el = document.createElement(ext === "mp4" ? "video" : "img");
+      el.src = src;
+      el.onload = el.oncanplay = () => el.style.opacity = 1;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (ext === "mp4") {
+        el.autoplay = true;
+        el.onended = () => next();
+      } else {
+        timeoutId = setTimeout(() => next(), duration);
       }
-      video,
-      img {
-        width: 100vw;
-        height: 100vh;
-        object-fit: contain;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="container"></div>
-    <script>
-      console.log("Viewer script loaded");
-    
-      const ws = new WebSocket("ws://" + location.hostname + ":3000");
-    
-      let mediaList = [], index = 0;
-      let timeoutId = null;
-    
-      const container = document.getElementById("container");
-      const progress = document.createElement("div");
-      progress.style.position = "absolute";
-      progress.style.bottom = "0";
-      progress.style.left = "0";
-      progress.style.height = "5px";
-      progress.style.background = "lime";
+      progress.style.transition = "none";
       progress.style.width = "0%";
-      progress.style.transition = "width linear";
-      document.body.appendChild(progress);
-    
-      function showMedia() {
-        container.innerHTML = "";
-    
-        if (!mediaList.length) return;
-        const current = mediaList[index];
-        const src = typeof current === "string" ? current : current.src;
-        const duration = typeof current === "string" ? 3000 : current.duration || 3000;
-    
-        const ext = src.split('.').pop().toLowerCase();
-        const el = ext === "mp4" ? document.createElement("video") : document.createElement("img");
-        el.src = src;
-        el.style.opacity = 0;
-        el.style.transition = "opacity 1s ease-in-out";
-    
-        el.onload = () => el.style.opacity = 1;
-        el.oncanplay = () => el.style.opacity = 1;
-    
-        if (timeoutId) clearTimeout(timeoutId);
-    
-        if (ext === "mp4") {
-          el.autoplay = true;
-          el.onended = () => next();
-        } else {
-          timeoutId = setTimeout(() => next(), duration);
-        }
-    
-        progress.style.transition = "none";
-        progress.style.width = "0%";
-        void progress.offsetWidth; // force reflow
-        progress.style.transition = `width ${duration}ms linear`;
-        progress.style.width = "100%";
-    
-        container.appendChild(el);
+      void progress.offsetWidth;
+      progress.style.transition = `width ${duration}ms linear`;
+      progress.style.width = "100%";
+      container.appendChild(el);
+    }
+
+    function next() {
+      index++;
+      if (index >= mediaList.length) {
+        index = 0;
+        loopCount++;
       }
-    
-      function next() {
-        index = (index + 1) % mediaList.length;
+      showMedia();
+    }
+
+    ws.onmessage = async (event) => {
+      const text = await event.data.text();
+      const data = JSON.parse(text);
+      if (data.type === "update") {
+        mediaList = data.media;
+        orientation = data.orientation || 'landscape';
+        maxLoops = data.loop || Infinity;
+        index = 0;
+        loopCount = 0;
+        applyOrientation();
         showMedia();
       }
-    
-      ws.onmessage = async (event) => {
-        const text = await event.data.text();
-        const data = JSON.parse(text);
-        console.log("Received:", data);
-    
-        if (data.type === "update") {
-          mediaList = data.media;
-          index = 0;
-          showMedia();
-        }
-      };
-    </script>
-    
-  </body>
+    };
+  </script>
+</body>
 </html>

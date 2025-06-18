@@ -1,18 +1,46 @@
-
 <!DOCTYPE html>
 <html>
-<head><title>Controller</title></head>
+<head>
+  <meta charset="UTF-8">
+  <title>Controller</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    textarea { width: 100%; height: 120px; }
+    input, select { margin: 10px 0; padding: 5px; }
+  </style>
+</head>
 <body>
-  <h2>Controller</h2>
-  <label>Duration (ms): <input id="duration" type="number" value="3000"></label><br>
-  <label>Media (comma-separated): <textarea id="media" rows="4" cols="40">media/image1.jpg,media/image2.jpg</textarea></label><br>
+  <h1>Media Controller</h1>
+  <label>Media List (JSON):</label><br>
+  <textarea id="mediaInput">[{"src":"media/image1.jpg","duration":3000},{"src":"media/video1.mp4","duration":5000}]</textarea><br>
+  <label>Default Duration (ms):</label><br>
+  <input type="number" id="duration" value="3000"><br>
+  <label>Orientation:</label><br>
+  <select id="orientation">
+    <option value="landscape">Landscape</option>
+    <option value="portrait">Portrait</option>
+  </select><br>
+  <label>Loop Count (∞ = leave blank):</label><br>
+  <input type="number" id="loop"><br>
   <button onclick="sendUpdate()">Send Update</button>
+
   <script>
     const ws = new WebSocket("ws://" + location.hostname + ":3000");
     function sendUpdate() {
-      const media = document.getElementById('media').value.split(',').map(f => f.trim());
-      const duration = parseInt(document.getElementById('duration').value);
-      ws.send(JSON.stringify({ type: 'update', media, duration }));
+      let media;
+      try {
+        media = JSON.parse(document.getElementById("mediaInput").value);
+      } catch (e) {
+        alert("Invalid JSON!"); return;
+      }
+      const message = {
+        type: "update",
+        media: media,
+        duration: parseInt(document.getElementById("duration").value),
+        orientation: document.getElementById("orientation").value,
+        loop: parseInt(document.getElementById("loop").value) || undefined
+      };
+      ws.send(JSON.stringify(message));
     }
   </script>
 </body>
