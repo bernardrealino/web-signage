@@ -4,90 +4,82 @@
   <meta charset="UTF-8">
   <title>Viewer</title>
   <style>
-    body { margin: 0; background: black; overflow: hidden; }
-    #container img, #container video {
-      width: 100vw;
-      height: 100vh;
-      object-fit: contain;
+    html, body {
+      margin: 0; padding: 0; background: black; overflow: hidden;
+      display: flex; justify-content: center; align-items: center; height: 100vh;
+    }
+    img, video {
+      position: absolute;
+      max-width: 100%;
+      max-height: 100%;
       opacity: 0;
       transition: opacity 1s ease-in-out;
     }
-    #progress {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      height: 5px;
-      background: lime;
-      width: 0%;
-      transition: width linear;
+    .visible {
+      opacity: 1;
     }
   </style>
 </head>
 <body>
-  <div id="container"></div>
-  <div id="progress"></div>
+  <img id="image" />
+  <video id="video" autoplay muted loop></video>
   <script>
-    const ws = new WebSocket("ws://" + location.hostname + ":3000");
-    const container = document.getElementById("container");
-    const progress = document.getElementById("progress");
-    let mediaList = [], index = 0, loopCount = 0, maxLoops = Infinity, timeoutId = null, orientation = 'landscape';
-
-    function applyOrientation() {
-      document.body.style.transform = orientation === 'portrait' ? 'rotate(90deg)' : 'none';
-    }
-
-    function showMedia() {
-      if (!mediaList.length || loopCount >= maxLoops) return;
-      container.innerHTML = "";
-      const current = mediaList[index];
-      const src = typeof current === "string" ? current : current.src;
-      const duration = typeof current === "string" ? 3000 : current.duration || 3000;
-      const ext = src.split('.').pop().toLowerCase();
-      const el = document.createElement(ext === "mp4" ? "video" : "img");
-      el.src = src;
-      el.onload = el.oncanplay = () => el.style.opacity = 1;
-      if (timeoutId) clearTimeout(timeoutId);
-      if (ext === "mp4") {
-        el.autoplay = true;
-        el.onloadeddata = () => {
-          el.currentTime = 0;
-          el.play();
-        };
-        el.onended = () => next();
-      } else {
-        timeoutId = setTimeout(() => next(), duration);
-      }
-      
-      progress.style.transition = "none";
-      progress.style.width = "0%";
-      void progress.offsetWidth;
-      progress.style.transition = `width ${duration}ms linear`;
-      progress.style.width = "100%";
-      container.appendChild(el);
-    }
-
-    function next() {
-      index++;
-      if (index >= mediaList.length) {
-        index = 0;
-        loopCount++;
-      }
-      showMedia();
-    }
+    const image = document.getElementById("image");
+    const video = document.getElementById("video");
+    const ws = new WebSocket(`ws://${location.host}`);
+    let playlist = [], index = 0, loopCount = 0, maxLoops = Infinity, timeoutId = null, duration = 3000;
 
     ws.onmessage = async (event) => {
-      const text = await event.data.text();
-      const data = JSON.parse(text);
-      if (data.type === "update") {
-        mediaList = data.media;
-        orientation = data.orientation || 'landscape';
-        maxLoops = data.loop || Infinity;
+      const text = await event.data.text()
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.warn("Non-JSON message received");
+        return;
+      }
+      if (data.type === "playlist") {
+        console.log("Received playlist", data);
+        clearTimeout(timeoutId);
+        playlist = data.files;
+        duration = data.duration || 3000;
         index = 0;
-        loopCount = 0;
-        applyOrientation();
-        showMedia();
+        playNext();
       }
     };
+
+    function playNext() {
+      if (!playlist.length) return;
+
+      const file = playlist[index];
+      const ext = file.split('.').pop().toLowerCase();
+      const path = `/media/${file}`;
+
+      // Fade out both first
+      image.classList.remove("visible");
+      video.classList.remove("visible");
+
+      if (["mp4", "webm", "ogg"].includes(ext)) {
+        video.src = path;
+        video.load();
+        video.onloadeddata = () => {
+          image.style.zIndex = 0;
+          video.style.zIndex = 1;
+          video.classList.add("visible");
+          video.play();
+        };
+      } else {
+        image.src = path;
+        image.onload = () => {
+          video.style.zIndex = 0;
+          image.style.zIndex = 1;
+          image.classList.add("visible");
+        };
+      }
+
+      index = (index + 1) % playlist.length;
+      timeoutId = setTimeout(playNext, duration);
+    }
   </script>
 </body>
 </html>

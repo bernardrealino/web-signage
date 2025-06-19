@@ -1,32 +1,38 @@
 const express = require("express");
 const WebSocket = require("ws");
+const http = require("http");
 const multer = require("multer");
-const path = require("path");
 const fs = require("fs");
+const path = require("path");
 
 const app = express();
-const port = 3000;
-const upload = multer({ dest: path.join(__dirname, "media") });
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
-app.use(express.static(__dirname));
+const mediaDir = path.join(__dirname, "media");
+if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir);
+
+app.use("/media", express.static(mediaDir));
+app.use(express.static("public"));
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, mediaDir),
+  filename: (req, file, cb) => cb(null, file.originalname)
+});
+const upload = multer({ storage });
 
 app.post("/upload", upload.array("files"), (req, res) => {
-  const renamedFiles = [];
-  req.files.forEach(file => {
-    const dest = path.join(__dirname, "media", file.originalname);
-    fs.renameSync(file.path, dest);
-    renamedFiles.push("media/" + file.originalname);
+  res.sendStatus(200);
+});
+
+app.get("/media-list", (req, res) => {
+  fs.readdir(mediaDir, (err, files) => {
+    if (err) return res.status(500).json([]);
+    res.json(files.filter(f => /\.(jpg|jpeg|png|gif|mp4|webm|ogg)$/i.test(f)));
   });
-  res.json({ files: renamedFiles });
 });
 
-const server = app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
-
-const wss = new WebSocket.Server({ server });
 let clients = [];
-
 wss.on("connection", ws => {
   clients.push(ws);
   ws.on("close", () => {
@@ -41,10 +47,5 @@ wss.on("connection", ws => {
   });
 });
 
-app.get("/media-list", (req, res) => {
-  const mediaPath = path.join(__dirname, "media");
-  fs.readdir(mediaPath, (err, files) => {
-    if (err) return res.status(500).json({ error: "Unable to list files" });
-    res.json(files.filter(f => /\.(jpe?g|png|gif|mp4|webm)$/i.test(f)));
-  });
-});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
