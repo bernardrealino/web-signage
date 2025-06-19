@@ -76,7 +76,7 @@
           image.classList.add("visible");
         };
       }
-
+      ws.send(JSON.stringify({ type: "status", nowPlaying: file }));
       index = (index + 1) % playlist.length;
       timeoutId = setTimeout(playNext, duration);
     }

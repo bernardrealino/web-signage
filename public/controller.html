@@ -17,6 +17,7 @@
   <h2>📱 Media Controller</h2>
   <label>📂 Media Files:</label>
   <div id="mediaList"></div>
+  <div id="nowPlaying" style="margin-top: 20px; font-weight: bold;">🎞️ Now Playing: -</div>
   <label>⏱️ Per Media Duration (ms):</label>
   <input type="number" id="duration" value="3000">
   <label>🖼️ Orientation:</label>
@@ -90,6 +91,19 @@
       console.log("Sending playlist:", payload);
       ws.send(JSON.stringify(payload));
     });
+
+    ws.onmessage = async (event) => {
+      const text = await event.data.text()
+      try {
+        const data = JSON.parse(text);
+        if (data.type === "status") {
+          document.getElementById("nowPlaying").textContent = "🎞️ Now Playing: " + data.nowPlaying;
+        }
+      } catch (e) {
+        console.error("Non-JSON or unexpected message:", event.data);
+      }
+    };
+    
 
     loadMediaList();
   </script>
